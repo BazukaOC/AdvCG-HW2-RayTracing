@@ -139,121 +139,15 @@ bool isIntersectedTri(vec3 &ray, vec3 &a, vec3 &b, vec3 &c, vec3 &seye) {
 int main()
 {
     readFile();
-    setRay();
-
     ColorImage image;
     image.init(Rw, Rh);
-
-    Pixel color;
-    Pixel black = {0, 0, 0};
     Pixel white = {255, 255, 255};
-    ///Pixel color = ambient + diffuse + specular + reflected + transmitted;
-
-    for (int i = 0; i < Rw; ++i) {
-        for (int j = 0; j < Rh; ++j) {
-            /// generate the ray.
-            vec3 ray = dir + i*hori - j*vert;
-            ray = ray.normalize();
-            image.writePixel(i, j, black);
-            /// test if it intersected with all triangles.
-            for (unsigned int t = 0; t < Triangle.size(); t+=3) {
-                if( isIntersectedTri(ray, Triangle[t], Triangle[t+1], Triangle[t+2], eye) ) {
-
-                    vec3 chktolit = light - checkingPoint;
-                    vec3 eyetochk = checkingPoint - eye;
-                    half = (chktolit - eyetochk) / 2;
-
-                    chktolit = chktolit.normalize();
-                    eyetochk = eyetochk.normalize();
-                    half     =     half.normalize();
-
-                    Ii = 3.0;
-                    Ia = Ii;
-                    Id = Ii * normal * chktolit;
-                    Is = Ii * pow(normal*half, 2);
-                    intansity = Ka*Ia + Kd*Id + Ks*Is;
-
-                    for(int k = 0; k < 3; ++k) {
-                        if(intansity[k] > 1.0) { intansity[k] = 1.0; }
-                        if(intansity[k] < 0.0) { intansity[k] = 0.0; }
-                    }
-
-                    color.R = intansity[0] * 255;
-                    color.G = intansity[1] * 255;
-                    color.B = intansity[2] * 255;
-
-                    image.writePixel(i, j, color);
-
-                    chktolit = checkingPoint - light;
-                    chktolit = chktolit.normalize();
-                    if( isIntersectedSph(chktolit, Sphere[0], light) ) {
-                        image.writePixel(i, j, black);
-                    }
-                }
-            }
-            /// test if it intersected with all spheres.
-            for (unsigned int s = 0; s < Sphere.size(); ++s) {
-                if( isIntersectedSph(ray, Sphere[s], eye) ) {
-
-                    vec3 oricheckpt = checkingPoint;
-                    vec3 orinormal  = normal;
-
-                    vec3 chktolit = light - checkingPoint;
-                    half = (chktolit - ray) / 2;
-
-                    chktolit = chktolit.normalize();
-                    half     =     half.normalize();
-
-                    Ii = 3.0;
-                    Ia = Ii;
-                    Id = Ii * orinormal * chktolit;
-                    Is = Ii * pow(orinormal*half, Ke);
-                    intansity = Ka*Ia + Kd*Id + Ks*Is;
-
-                    for(int k = 0; k < 3; ++k) {
-                        if(intansity[k] > 1.0) { intansity[k] = 1.0; }
-                        if(intansity[k] < 0.0) { intansity[k] = 0.0; }
-                    }
-
-                    /// reflection
-                    vec3 Ireflect = vec3(0, 0, 0);
-                    reflect = ray - 2 * (orinormal * ray) * orinormal;
-                    reflect = reflect.normalize();
-                    if( isIntersectedTri(reflect, Triangle[0], Triangle[1], Triangle[2], oricheckpt) ||
-                        isIntersectedTri(reflect, Triangle[3], Triangle[4], Triangle[5], oricheckpt) ) {
-                        Ireflect = vec3(0.5, 0.5, 0.5);
-                        vec3 littochk = checkingPoint - light;
-                        littochk = littochk.normalize();
-                        if( isIntersectedSph(littochk, Sphere[0], light) ) {
-                            image.writePixel(i, j, black);
-                            break;
-                        }
-                    }
-                    /// refraction
-                    vec3 Irefract = vec3(0, 0, 0);
-                    float n = 1 / Nr;
-                    float cosI  = - orinormal * ray;
-                    float sinT2 = n * n * ( 1 - cosI * cosI );
-                    if(sinT2 <= 1.0) {
-                        float cosT = sqrt(1 - sinT2);
-                        refract = n * ray + ( n * cosI - cosT ) * orinormal;
-                        refract = refract.normalize();
-                        if( isIntersectedTri(refract, Triangle[0], Triangle[1], Triangle[2], oricheckpt) ||
-                            isIntersectedTri(refract, Triangle[3], Triangle[4], Triangle[5], oricheckpt) ) {
-                            Irefract = vec3(0.5, 0.5, 0.5);
-                        }
-                    }
-                    /// merge all elements
-                    float c1 = 0.80, c2 = 0.15, c3 = 0.05;
-                    color.R = ( intansity[0] * c1 + Ireflect[0] * c2 + Irefract[0] * c3 ) * 255;
-                    color.G = ( intansity[1] * c1 + Ireflect[1] * c2 + Irefract[1] * c3 ) * 255;
-                    color.B = ( intansity[2] * c1 + Ireflect[2] * c2 + Irefract[2] * c3 ) * 255;
-                    image.writePixel(i, j, color);
-                }
-            }
+    for(int x = 0; x < Rw; x += 1) {
+        for(int y = 0; y < Rh; y += 1) {
+            image.writePixel(x, y, white);
         }
     }
-    char outputname[15] = "hw1_output.ppm";
+    char outputname[15] = "output.ppm";
     image.outputPPM(outputname);
     return 0;
 }

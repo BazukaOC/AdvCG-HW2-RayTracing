@@ -28,8 +28,8 @@ public:
         direct_ = direct;
         count_  = count;
     }
-    bool isIntersectedSphere(vec4);      ///not done, must return distance to check the first impact object
-    bool isIntersectedTriangle(vec3[3]); ///not done, must return distance to check the first impact object
+    bool isIntersectedSphere(vec4);      /// not done, must return distance to check the first impact object
+    bool isIntersectedTriangle(vec3[3]); /// not done, must return distance to check the first impact object
     vec3 firstRayGenerator(int, int);
     vec3 raytracing(vec3, vec3, int);
 private:
