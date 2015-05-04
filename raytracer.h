@@ -4,6 +4,7 @@
 #include <iostream> /// for testing
 #include <vector>
 #include <math.h>
+#include <algorithm>
 #include "algebra3.h"
 
 #define PI 3.1415926535898
@@ -33,12 +34,14 @@ public:
 class cTriangle {
 public:
     Position x1, y1, z1, x2, y2, z2, x3, y3, z3;
+    int r, g, b;
     Pixel color;
 };
 
 class cSphere {
 public:
     Position x, y, z, r;
+    int red, g, b;
     Pixel color;
 };
 
@@ -91,7 +94,7 @@ public:
         light_       = light;
 
         ka_ = vec3(0.350, 0.300, 0.150);
-        kd_ = vec3(0.800, 0.600, 0.500);
+        kd_ = vec3(0.600, 0.600, 0.600);
         ks_ = vec3(1.000, 1.000, 1.000);
         exponential_ = exponential;
     }
@@ -102,7 +105,7 @@ public:
     }
     Pixel phongModelColor(Data&);
     Data  isIntersectedSphere(vec4&, Ray&);
-    Data  isIntersectedTriangle(std::vector<vec3>&, Ray&);
+    Data  isIntersectedTriangle(cTriangle&, Ray&);
     Data  isIntersected(Ray&);
 
     vec3  firstRayGenerator(int, int);
@@ -124,11 +127,9 @@ private:
 
 Pixel RayTracer::phongModelColor(Data &data) {
     float Id = data.normal * data.hitpointToLight, Is = pow(data.normal * data.half, exponential_);
-    Id = Id < 0 ? 0 : Id;
-    float Ia = 1.0 - Id - Is;
-    float total = Ia + Id + Is;
-    Ia /= total; Id /= total; Is /= total;
-    vec3 color = ka_ * Ia + kd_ * Id + ks_ * Is;
+    float Ia = 2.2;
+    float intansity = 0.45;
+    vec3 color = ka_ * Ia + (kd_ * Id + ks_ * Is) * intansity;
     int r = color[0] * 255, g = color[1] * 255, b = color[2] * 255;
     r = r > 255 ? 255 : r; r = r < 0 ? 0 : r;
     g = g > 255 ? 255 : g; g = g < 0 ? 0 : g;
@@ -170,10 +171,10 @@ Data RayTracer::isIntersectedSphere(vec4 &sphere, Ray &ray) {
     return data;
 }
 
-Data RayTracer::isIntersectedTriangle(std::vector<vec3> &triangle, Ray &ray) {
+Data RayTracer::isIntersectedTriangle(cTriangle &triangle, Ray &ray) {
     Data data;
-    vec3 S1 = triangle[1] - triangle[0];
-    vec3 S2 = triangle[2] - triangle[0];
+    vec3 S1 = vec3(triangle.x2 - triangle.x1, triangle.y2 - triangle.y1, triangle.z2 - triangle.z1);
+    vec3 S2 = vec3(triangle.x3 - triangle.x1, triangle.y3 - triangle.y1, triangle.z3 - triangle.z1);
     vec3 normal  = S1 ^ S2;
 
     if (normal * ray.direct > 0) { normal = normal * -1; }
@@ -188,9 +189,9 @@ Data RayTracer::isIntersectedTriangle(std::vector<vec3> &triangle, Ray &ray) {
 
     /// ray is away from the triangle, ax + by + cz = d
 
-    float d = normal[0]*triangle[0][0]+
-              normal[1]*triangle[0][1]+
-              normal[2]*triangle[0][2];
+    float d = normal[0]*triangle.x1+
+              normal[1]*triangle.y1+
+              normal[2]*triangle.z1;
 
     float t = ( d - ( normal[0]*ray.start[0]  + normal[1]*ray.start[1]  + normal[2]*ray.start[2]  ) ) /
                     ( normal[0]*ray.direct[0] + normal[1]*ray.direct[1] + normal[2]*ray.direct[2] );
@@ -201,9 +202,9 @@ Data RayTracer::isIntersectedTriangle(std::vector<vec3> &triangle, Ray &ray) {
     float inaccuracy = 0.0001;
     vec3 checkingPoint = vec3(ray.start[0] + t*ray.direct[0], ray.start[1] + t*ray.direct[1], ray.start[2] + t*ray.direct[2]);
 
-    vec3 S3 = checkingPoint - triangle[0];
-    vec3 S4 = triangle[1] - checkingPoint;
-    vec3 S5 = triangle[2] - checkingPoint;
+    vec3 S3 = checkingPoint - vec3(triangle.x1, triangle.y1, triangle.z1);
+    vec3 S4 = vec3(triangle.x2, triangle.y2, triangle.z2) - checkingPoint;
+    vec3 S5 = vec3(triangle.x3, triangle.y3, triangle.z3) - checkingPoint;
 
     vec3 v31 = S1 ^ S3; float tri31 = v31.length() / 2;
     vec3 v32 = S2 ^ S3; float tri32 = v32.length() / 2;
@@ -222,7 +223,8 @@ Data RayTracer::isIntersectedTriangle(std::vector<vec3> &triangle, Ray &ray) {
     data.distance              = data.startToHitpoint.length();
     data.normal                = normal;
     data.half                  = (data.hitpointToLight - ray.direct) / 2;
-    data.color                 = phongModelColor(data);
+//    data.color                 = phongModelColor(data);
+    data.color                 = {triangle.r, triangle.g, triangle.b};
     return data;
 }
 
@@ -237,11 +239,7 @@ Data RayTracer::isIntersected(Ray &ray) {
         }
     }
     for(std::size_t i = 0; i < triangle_.size(); i += 1) {
-        std::vector<vec3> tempV;
-        vec3 p1     = vec3(triangle_[i].x1, triangle_[i].y1, triangle_[i].z1); tempV.push_back(p1);
-        vec3 p2    = vec3(triangle_[i].x2, triangle_[i].y2, triangle_[i].z2); tempV.push_back(p2);
-        vec3 p3    = vec3(triangle_[i].x3, triangle_[i].y3, triangle_[i].z3); tempV.push_back(p3);
-        Data tempD = isIntersectedTriangle(tempV, ray);
+        Data tempD = isIntersectedTriangle(triangle_[i], ray);
         if(tempD.distance < best.distance && tempD.isIntersected) {
             best = tempD;
         }

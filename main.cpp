@@ -59,7 +59,8 @@ void readFile() {
             case 'T':
                 ifile >> triangle.x1 >> triangle.y1 >> triangle.z1 >>
                          triangle.x2 >> triangle.y2 >> triangle.z2 >>
-                         triangle.x3 >> triangle.y3 >> triangle.z3;
+                         triangle.x3 >> triangle.y3 >> triangle.z3 >>
+                         triangle.r  >> triangle.g  >> triangle.b;
                 vTriangle.push_back(triangle);
                 break;
             case 'L':
@@ -68,6 +69,8 @@ void readFile() {
                 break;
             case 'M':
                 ifile >> r >> g >> b >> kaa >> kdd >> kss >> Ke >> Nr;
+                break;
+            case 'X':
                 break;
         }
     }
