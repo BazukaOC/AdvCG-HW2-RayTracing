@@ -14,15 +14,20 @@ typedef float Position;
 
 class Data {
 public:
-    Pixel color;
-    float ditance;
-    bool  isIntersected;
-    bool  isIntersectedSphere;
-    bool  isIntersectedTriangle;
+    bool  isIntersected = false;
+    bool  isIntersectedSphere = false;
+    bool  isIntersectedTriangle = false;
+
+    Pixel color = {255, 255, 255};
+    float distance = -1.0;
+
     vec3  hitpoint;
+    vec3  startToHitpoint;
+    vec3  hitpointToLight;
     vec3  normal;
-    vec3  reflect;
-    vec3  refract;
+    vec3  half;
+//    vec3  reflect;
+//    vec3  refract;
 };
 
 class cTriangle {
@@ -55,10 +60,15 @@ public:
 
 class RayTracer {
 public:
-    RayTracer(vec3 start, vec3 direct, vec3 vertical, int angle, int resolutionW, int resolutionH,
+    RayTracer(vec3 start,
+              vec3 direct,
+              vec3 vertical,
+              int angle,
+              int resolutionW, int resolutionH,
               std::vector<cTriangle> triangle,
-              std::vector<cSphere>   sphere,
-              std::vector<cLight>    light ) {
+              std::vector<cSphere> sphere,
+              std::vector<cLight> light,
+              float exponential) {
 
         start_       = start;
         direct_      = direct;
@@ -72,32 +82,32 @@ public:
         vertical_    = vertical_.normalize();
         horizon_     =  horizon_.normalize();
 
-        horizonU_    = horizon_  * ( direct_.length() * Tan(angle_/2) / (resolutionW_/2) );
-        verticalU_   = vertical_ * ( direct_.length() * Tan(angle_/2) / (resolutionH_/2) );
+        horizonU_    = horizon_  * (direct_.length() * Tan(angle_/2) / (resolutionW_/2));
+        verticalU_   = vertical_ * (direct_.length() * Tan(angle_/2) / (resolutionH_/2));
         directU_     = direct_ - resolutionW_/2 * horizonU_ + resolutionH_/2 * verticalU_;
 
-        triangle_ = triangle;
-        sphere_   = sphere;
-        light_    = light;
+        triangle_    = triangle;
+        sphere_      = sphere;
+        light_       = light;
 
-        ka_ = vec3(0.100, 0.100, 0.100);
-        kd_ = vec3(0.700, 0.600, 0.300);
+        ka_ = vec3(0.350, 0.300, 0.150);
+        kd_ = vec3(0.800, 0.600, 0.500);
         ks_ = vec3(1.000, 1.000, 1.000);
+        exponential_ = exponential;
     }
     RayTracer(vec3 start, vec3 direct, int count) {
         start_  = start;
         direct_ = direct;
         count_  = count;
     }
+    Pixel phongModelColor(Data&);
+    Data  isIntersectedSphere(vec4&, Ray&);
+    Data  isIntersectedTriangle(std::vector<vec3>&, Ray&);
+    Data  isIntersected(Ray&);
 
-    bool isIntersectedSphere(vec4&, Ray&);      /// not done, must return distance to check the first impact object
-    bool isIntersectedTriangle(std::vector<vec3>&, Ray&);    /// not done, must return distance to check the first impact object
-    bool isIntersectedAllSphere(Ray&);
-    bool isIntersectedAllTriangle(Ray&);
-    Data isIntersected(Ray&);
+    vec3  firstRayGenerator(int, int);
+    vec3  raytracing(vec3, vec3, int);
 
-    vec3 firstRayGenerator(int, int);
-    vec3 raytracing(vec3, vec3, int);
 private:
     int   count_;
     int   angle_, resolutionW_, resolutionH_;
@@ -108,19 +118,27 @@ private:
     std::vector<cSphere>   sphere_;
     std::vector<cLight>    light_;
 
-    vec3  ka_, kd_, ks_, intansity_;
-    float ia_, id_, is_, ii_, distance_, exponential_;
-    vec3  collectColor_;
-
-/// intansity = Ka*Ia + Kd*Id + Ks*Is
-/// Ka = {r, g, b}, Ia = Ka
-/// Kd = {r, g, b}, Id = normal * point_to_light
-/// Ks = {r, g, b}, Is = pow(normal * half, exponential)
-/// half = (eye_to_point + point_to_light) / 2
+    vec3  ka_, kd_, ks_;
+    float exponential_;
 };
 
-bool RayTracer::isIntersectedSphere(vec4 &sphere, Ray &ray) {
+Pixel RayTracer::phongModelColor(Data &data) {
+    float Id = data.normal * data.hitpointToLight, Is = pow(data.normal * data.half, exponential_);
+    Id = Id < 0 ? 0 : Id;
+    float Ia = 1.0 - Id - Is;
+    float total = Ia + Id + Is;
+    Ia /= total; Id /= total; Is /= total;
+    vec3 color = ka_ * Ia + kd_ * Id + ks_ * Is;
+    int r = color[0] * 255, g = color[1] * 255, b = color[2] * 255;
+    r = r > 255 ? 255 : r; r = r < 0 ? 0 : r;
+    g = g > 255 ? 255 : g; g = g < 0 ? 0 : g;
+    b = b > 255 ? 255 : b; b = b < 0 ? 0 : b;
+    Pixel colorP = {r, g, b};
+    return colorP;
+}
 
+Data RayTracer::isIntersectedSphere(vec4 &sphere, Ray &ray) {
+    Data data;
     float A = ray.direct[0]*ray.direct[0]+
               ray.direct[1]*ray.direct[1]+
               ray.direct[2]*ray.direct[2];
@@ -133,14 +151,27 @@ bool RayTracer::isIntersectedSphere(vec4 &sphere, Ray &ray) {
               (ray.start[1]-sphere[1])*(ray.start[1]-sphere[1])+
               (ray.start[2]-sphere[2])*(ray.start[2]-sphere[2])-sphere[3]*sphere[3];
 
-
     if ( ( B*B - 4*A*C ) >= 0 ) {
-        return true;
+        float t = ( -B - sqrt(B*B - 4*A*C) ) / 2;
+
+        data.isIntersected         = true;
+        data.isIntersectedSphere   = true;
+        data.isIntersectedTriangle = false;
+
+        data.hitpoint              = vec3(ray.start[0] + t*ray.direct[0], ray.start[1] + t*ray.direct[1], ray.start[2] + t*ray.direct[2]);
+        data.startToHitpoint       = data.hitpoint - ray.start;
+        data.hitpointToLight       = vec3(light_[0].x, light_[0].y, light_[0].z) - data.hitpoint;
+        data.distance              = data.startToHitpoint.length();
+        data.normal                = data.hitpoint - vec3(sphere[0], sphere[1], sphere[2]); data.normal = data.normal.normalize();
+        data.half                  = (data.hitpointToLight - ray.direct) / 2;
+        data.color                 = phongModelColor(data);
+        return data;
     }
-    return false;
+    return data;
 }
 
-bool RayTracer::isIntersectedTriangle(std::vector<vec3> &triangle, Ray &ray) {
+Data RayTracer::isIntersectedTriangle(std::vector<vec3> &triangle, Ray &ray) {
+    Data data;
     vec3 S1 = triangle[1] - triangle[0];
     vec3 S2 = triangle[2] - triangle[0];
     vec3 normal  = S1 ^ S2;
@@ -150,10 +181,10 @@ bool RayTracer::isIntersectedTriangle(std::vector<vec3> &triangle, Ray &ray) {
     normal = normal.normalize();
 
     /// there is no triangle
-    if( normal == vec3(0, 0, 0) ) { return false; }
+    if( normal == vec3(0, 0, 0) ) { return data; }
 
     /// ray is not in the triangle plane
-    if( ray.direct * normal == 0 ) { return false; }
+    if( ray.direct * normal == 0 ) { return data; }
 
     /// ray is away from the triangle, ax + by + cz = d
 
@@ -164,7 +195,7 @@ bool RayTracer::isIntersectedTriangle(std::vector<vec3> &triangle, Ray &ray) {
     float t = ( d - ( normal[0]*ray.start[0]  + normal[1]*ray.start[1]  + normal[2]*ray.start[2]  ) ) /
                     ( normal[0]*ray.direct[0] + normal[1]*ray.direct[1] + normal[2]*ray.direct[2] );
 
-    if ( t < 0.0 ) { return false; }
+    if ( t < 0.0 ) { return data; }
 
     /// inside test
     float inaccuracy = 0.0001;
@@ -179,54 +210,43 @@ bool RayTracer::isIntersectedTriangle(std::vector<vec3> &triangle, Ray &ray) {
     vec3 v12 = S1 ^ S2; float tri12 = v12.length() / 2;
     vec3 v45 = S4 ^ S5; float tri45 = v45.length() / 2;
 
-    if ( (tri31 + tri32 + tri45 - tri12) > inaccuracy ) { return false; }
-    return true;
-}
+    if ( (tri31 + tri32 + tri45 - tri12) > inaccuracy ) { return data; }
 
-bool RayTracer::isIntersectedAllSphere(Ray &ray) {
-    for(std::size_t i = 0; i < sphere_.size(); i += 1) {
-        vec4 temp = vec4(sphere_[i].x, sphere_[i].y, sphere_[i].z, sphere_[i].r);
-        if(isIntersectedSphere(temp, ray)) {
-            return true;
-        }
+    data.isIntersected         = true;
+    data.isIntersectedSphere   = false;
+    data.isIntersectedTriangle = true;
 
-    }
-
-    return false;
-}
-
-bool RayTracer::isIntersectedAllTriangle(Ray &ray) {
-    for(std::size_t i = 0; i < triangle_.size(); i += 1) {
-        std::vector<vec3> temp;
-        vec3 p1  = vec3(triangle_[i].x1, triangle_[i].y1, triangle_[i].z1); temp.push_back(p1);
-        vec3 p2  = vec3(triangle_[i].x2, triangle_[i].y2, triangle_[i].z2); temp.push_back(p2);
-        vec3 p3  = vec3(triangle_[i].x3, triangle_[i].y3, triangle_[i].z3); temp.push_back(p3);
-        if(isIntersectedTriangle(temp, ray)) {
-            return true;
-        }
-    }
-    return false;
+    data.hitpoint              = checkingPoint;
+    data.startToHitpoint       = data.hitpoint - ray.start;
+    data.hitpointToLight       = vec3(light_[0].x, light_[0].y, light_[0].z) - data.hitpoint;
+    data.distance              = data.startToHitpoint.length();
+    data.normal                = normal;
+    data.half                  = (data.hitpointToLight - ray.direct) / 2;
+    data.color                 = phongModelColor(data);
+    return data;
 }
 
 Data RayTracer::isIntersected(Ray &ray) {
-    Data data;
-    if(isIntersectedAllSphere(ray)) {
-        data.isIntersected         = true;
-        data.isIntersectedSphere   = true;
-        data.isIntersectedTriangle = false;
-        data.color = {160, 140, 120};
-    } else if(isIntersectedAllTriangle(ray)) {
-        data.isIntersected         = true;
-        data.isIntersectedSphere   = false;
-        data.isIntersectedTriangle = true;
-        data.color = {255, 255, 255};
-    } else {
-        data.isIntersected         = false;
-        data.isIntersectedSphere   = false;
-        data.isIntersectedTriangle = false;
-        data.color = {0, 0, 0};
+    Data best;
+    best.distance = 100;
+    for(std::size_t i = 0; i < sphere_.size(); i += 1) {
+        vec4 tempV = vec4(sphere_[i].x, sphere_[i].y, sphere_[i].z, sphere_[i].r);
+        Data tempD = isIntersectedSphere(tempV, ray);
+        if(tempD.distance < best.distance && tempD.isIntersected) {
+            best = tempD;
+        }
     }
-    return data;
+    for(std::size_t i = 0; i < triangle_.size(); i += 1) {
+        std::vector<vec3> tempV;
+        vec3 p1     = vec3(triangle_[i].x1, triangle_[i].y1, triangle_[i].z1); tempV.push_back(p1);
+        vec3 p2    = vec3(triangle_[i].x2, triangle_[i].y2, triangle_[i].z2); tempV.push_back(p2);
+        vec3 p3    = vec3(triangle_[i].x3, triangle_[i].y3, triangle_[i].z3); tempV.push_back(p3);
+        Data tempD = isIntersectedTriangle(tempV, ray);
+        if(tempD.distance < best.distance && tempD.isIntersected) {
+            best = tempD;
+        }
+    }
+    return best;
 }
 
 vec3 RayTracer::firstRayGenerator(int x, int y) {

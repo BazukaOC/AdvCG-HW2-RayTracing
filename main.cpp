@@ -76,7 +76,7 @@ void readFile() {
 int main()
 {
     readFile();
-    RayTracer raytracer(eye, direct, vertical, angle, resolusionW, resolusionH, vTriangle, vSphere, vLight);
+    RayTracer raytracer(eye, direct, vertical, angle, resolusionW, resolusionH, vTriangle, vSphere, vLight, Ke);
     ColorImage image;
     image.init(resolusionW, resolusionH);
 
